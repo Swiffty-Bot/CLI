@@ -35,4 +35,4 @@ jobs:
           archive_types: ${{ matrix.archive }}
           extra_files: "README.md"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
