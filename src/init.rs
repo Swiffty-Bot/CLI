@@ -70,7 +70,9 @@ pub fn init(matches: &ArgMatches) {
         }
     }
 
-    let repo = match Repository::clone(&git_url, &project_name) {
+    let url_with_lang = format!("{}-{}/", git_url, project_lang);
+
+    let _repo = match Repository::clone(&url_with_lang, &project_name) {
         Ok(repo) => repo,
         Err(e) => panic!("Failed to clone: {}", e),
     };
