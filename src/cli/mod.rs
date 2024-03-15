@@ -3,11 +3,7 @@ mod init;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(
-    name = "customs",
-    version = "0.1.0",
-    about = "thing",
-)]
+#[command(name = "customs", version = "0.1.0", about = "thing")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
