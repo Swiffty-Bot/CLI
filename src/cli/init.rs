@@ -3,7 +3,6 @@ use dialoguer::Input;
 use git2::Repository;
 use std::path::PathBuf;
 use std::{fs, process};
-
 use crate::model::Config;
 use crossterm::style::Stylize;
 
@@ -20,10 +19,11 @@ pub struct Cli {
 }
 
 pub fn init(args: Cli) {
-    let config_content =
-        fs::read_to_string("Config.toml").expect("Failed to read config.toml file");
+    let config_content = fs::read_to_string("Config.toml")
+        .expect("Failed to read config.toml file");
 
-    let config: Config = toml::from_str(&config_content).expect("Failed to parse config.toml file");
+    let config: Config = toml::from_str(&config_content)
+        .expect("Failed to parse config.toml file");
 
     if !config.allowed_languages.contains(&args.lang) {
         println!("{}", "Language not supported".red());
@@ -49,7 +49,9 @@ pub fn init(args: Cli) {
         }
     }
 
-    let _repo = match Repository::clone(&config.git_url, &path) {
+    let url_with_lang = format!("{}-{}/", config.git_url, args.lang);
+
+    let _repo = match Repository::clone(&url_with_lang, &path) {
         Ok(repo) => repo,
         Err(e) => {
             println!("{}", format!("Failed to clone: {}", e).red());
@@ -57,5 +59,6 @@ pub fn init(args: Cli) {
         }
     };
 
-    println!("{}", "Project initialized successfully".green());
+    println!("{} {}", "Initialized".green(), args.name);
 }
+
