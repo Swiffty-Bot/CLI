@@ -1,2 +1,2 @@
-allowed_languages = ["javascript", "js", "python", "py", "rust", "rs"]
-git_url = "https://github.com/C-h-a-r/C-h-a-r"
+allowed_languages = ["js","py", "rs"]
+git_url = "https://github.com/C-h-a-r/DiscordCustoms-Template"
