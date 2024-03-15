@@ -169,18 +169,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "customs"
-version = "0.1.0"
-dependencies = [
- "clap",
- "crossterm",
- "dialoguer",
- "git2",
- "serde",
- "toml",
-]
-
-[[package]]
 name = "dialoguer"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -191,6 +179,18 @@ dependencies = [
  "tempfile",
  "thiserror",
  "zeroize",
+]
+
+[[package]]
+name = "discord_customs"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "crossterm",
+ "dialoguer",
+ "git2",
+ "serde",
+ "toml",
 ]
 
 [[package]]
