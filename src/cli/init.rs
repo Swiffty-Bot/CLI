@@ -26,7 +26,7 @@ pub fn init(args: Cli) {
     let config: Config = toml::from_str(&config_content).expect("Failed to parse config.toml file");
 
     if !config.allowed_languages.contains(&args.lang) {
-        println!("{}", "Language not allowed".red());
+        println!("{}", "Language not supported".red());
         process::exit(1);
     }
 
@@ -34,7 +34,6 @@ pub fn init(args: Cli) {
 
     if let Ok(entries) = fs::read_dir(&path) {
         if entries.peekable().peek().is_some() {
-            // faster than checking count > 0 bc it only checks one entry in the case that some retard monkey does this in a folder with a million files
             println!("{}", "Directory is not empty".red());
 
             let theme = dialoguer::theme::ColorfulTheme::default();
@@ -45,7 +44,7 @@ pub fn init(args: Cli) {
                 .unwrap();
 
             if !input {
-                process::exit(0); // idk the opcode for abort so this for now
+                process::exit(0); 
             }
         }
     }
