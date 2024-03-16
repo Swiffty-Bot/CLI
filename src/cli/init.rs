@@ -21,7 +21,14 @@ pub fn init(args: Cli) {
     let allowed_languages = ["js", "py", "rs"];
     let git_url = "https://github.com/C-h-a-r/DiscordCustoms-Template";
 
+    if !allowed_languages.contains(&args.lang.as_str()) {
+        println!("{}", "Language not supported".red());
+        process::exit(1);
+    }
+
     let path = args.path.unwrap_or_else(|| PathBuf::from(&args.name));
+
+    
 
     if let Ok(entries) = fs::read_dir(&path) {
         if entries.peekable().peek().is_some() {
