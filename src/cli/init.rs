@@ -3,7 +3,6 @@ use dialoguer::Input;
 use git2::Repository;
 use std::path::PathBuf;
 use std::{fs, process};
-use crate::model::Config;
 use crossterm::style::Stylize;
 
 #[derive(Args)]
@@ -19,16 +18,8 @@ pub struct Cli {
 }
 
 pub fn init(args: Cli) {
-    let config_content = fs::read_to_string("Config.toml")
-        .expect("Failed to read config.toml file");
-
-    let config: Config = toml::from_str(&config_content)
-        .expect("Failed to parse config.toml file");
-
-    if !config.allowed_languages.contains(&args.lang) {
-        println!("{}", "Language not supported".red());
-        process::exit(1);
-    }
+    let allowed_languages = ["js", "py", "rs"];
+    let git_url = "https://github.com/C-h-a-r/DiscordCustoms-Template";
 
     let path = args.path.unwrap_or_else(|| PathBuf::from(&args.name));
 
@@ -44,12 +35,12 @@ pub fn init(args: Cli) {
                 .unwrap();
 
             if !input {
-                process::exit(0); 
+                process::exit(0);
             }
         }
     }
 
-    let url_with_lang = format!("{}-{}/", config.git_url, args.lang);
+    let url_with_lang = format!("{}-{}/", git_url, args.lang);
 
     let _repo = match Repository::clone(&url_with_lang, &path) {
         Ok(repo) => repo,
@@ -61,4 +52,5 @@ pub fn init(args: Cli) {
 
     println!("{} {}", "Initialized".green(), args.name);
 }
+
 
