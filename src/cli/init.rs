@@ -18,11 +18,20 @@ pub struct Cli {
 }
 
 pub fn init(args: Cli) {
+    let theme = dialoguer::theme::ColorfulTheme::default();
+
+    let input: bool = Input::with_theme(&theme)
+    .with_prompt("What would you like to do?")
+    .interact_text()
+    .unwrap();
+
+    println!("{}", input);
+
     let allowed_languages = ["js", "py", "rs"];
     let git_url = "https://github.com/C-h-a-r/DiscordCustoms-Template";
 
     if !allowed_languages.contains(&args.lang.as_str()) {
-        println!("{}", "Language not supported".red());
+        println!("{} Language not supported", "ERROR".red());
         process::exit(1);
     }
 
@@ -34,7 +43,7 @@ pub fn init(args: Cli) {
         if entries.peekable().peek().is_some() {
             println!("{}", "Directory is not empty".red());
 
-            let theme = dialoguer::theme::ColorfulTheme::default();
+            
 
             let input: bool = Input::with_theme(&theme)
                 .with_prompt("Proceed anyway")
