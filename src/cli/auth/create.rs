@@ -43,7 +43,6 @@ pub async fn create() {
         + &username.to_string()
         + "/"
         + &password.to_string();
-    println!("{}", url);
     let req = client.post(url);
 
     match req.send().await {
