@@ -2,7 +2,7 @@ mod account;
 mod init;
 mod logo;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, Args};
 
 #[derive(Parser)]
 #[command(
@@ -32,7 +32,7 @@ pub fn run() {
         }
         Commands::Account(_args) => {
             logo::logo();
-            account::account()
+            account::account();
         }
     }
 }
