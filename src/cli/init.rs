@@ -47,7 +47,7 @@ pub fn init(_args: Cli) {
     let _repo = match Repository::clone(&url_with_lang, &path) {
         Ok(repo) => repo,
         Err(e) => {
-            println!("{}", format!("Failed to clone: {}", e).red());
+            println!("{}", format!("{} Failed to clone: {}", "ERROR".bold().red(), e));
             process::exit(1);
         }
     };

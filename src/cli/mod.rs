@@ -1,6 +1,7 @@
 mod auth;
 mod init;
 mod logo;
+mod add;
 
 use clap::Parser;
 
@@ -19,8 +20,11 @@ pub struct Cli {
 pub enum Commands {
     #[command(about = "Initialize a project")]
     Init(init::Cli),
-    #[command(subcommand)]
+    #[command(about = "Complete account actions", subcommand)]
     Auth(AuthCommands),
+    #[command(about = "Initialize a project")]
+    Add(add::Cli),
+
 }
 
 #[derive(Parser)]
@@ -48,5 +52,9 @@ pub fn run() {
             AuthCommands::Login => auth::login::login(),
             AuthCommands::Logout => auth::logout::logout(),
         },
+        Commands::Add(args) => {
+            logo::logo();
+            add::add(args)
+        }
     }
 }
