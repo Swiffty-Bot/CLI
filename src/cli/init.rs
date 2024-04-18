@@ -2,8 +2,9 @@ use clap::Args;
 use crossterm::style::Stylize;
 use dialoguer::Input;
 use serde_json::json;
-use std::io::prelude::*;
 use std::fs;
+use std::io::prelude::*;
+use std::process::Command;
 
 #[derive(Args)]
 pub struct Cli {}
@@ -26,23 +27,47 @@ pub fn init(_args: Cli) {
         .interact_text()
         .unwrap();
 
-    let file_name = format!("{}/plugin-manifest.json", plugin_name);
+    let plugin_dir = &plugin_name;
 
-    let json_data = json!({
-        "name": plugin_name,
-        "version": "1.0",
-        "description": plugin_description,
-        "author": plugin_author
-    });
+    // Create plugin directory
+    fs::create_dir(plugin_dir).expect("Failed to create directory");
 
-    let formatted_json_data =
-        serde_json::to_string_pretty(&json_data).expect("Failed to serialize JSON data");
+    // Write to plugin.toml
+    let toml_data = format!(
+        r#"
+        [Plugin]
+        name = "{}"
+        version = "1.0"
+        description = "{}"
+        author = "{}"
+        "#,
+        plugin_name, plugin_description, plugin_author
+    );
+    let toml_file_path = format!("{}/manifest.toml", plugin_dir);
+    fs::write(&toml_file_path, toml_data).expect("Failed to write to manifest.toml");
 
-    fs::create_dir(&plugin_name).expect("Failed to create directory");
+    // Write to .gitignore
+    let gitignore_data = "# Ignore target directory\n/target/";
+    let gitignore_file_path = format!("{}/.gitignore", plugin_dir);
+    fs::write(&gitignore_file_path, gitignore_data).expect("Failed to write to .gitignore");
 
-    let mut file = fs::File::create(&file_name).expect("Failed to create file");
-    file.write_all(formatted_json_data.as_bytes())
-        .expect("Failed to write to file");
+    // Create src directory and index.lua file
+    let src_dir_path = format!("{}/src", plugin_dir);
+    fs::create_dir(&src_dir_path).expect("Failed to create src directory");
+    let lua_file_path = format!("{}/index.lua", src_dir_path);
+    fs::File::create(&lua_file_path).expect("Failed to create index.lua");
 
-    println!("{} {}\n\n{}\n{}\n\nHave Fun Coding!", "Initialized".green(), plugin_name, "Swiffty commands and events must be writen in lua. We do this to avoid malwear infecting plugins.".italic().yellow(), "Learn more here: https://example.com/".bold().yellow());
+    // Initialize git repository
+    Command::new("git")
+        .args(&["init", plugin_dir])
+        .output()
+        .expect("Failed to initialize git repository");
+
+    println!(
+        "{} {}\n\n{}\n{}\n\nHave Fun Coding!",
+        "Initialized".green(),
+        plugin_name,
+        "Swiffty commands and events must be written in Lua. We do this to avoid malware infecting plugins.".italic().yellow(),
+        "Learn more here: https://example.com/".bold().yellow()
+    );
 }

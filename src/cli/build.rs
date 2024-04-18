@@ -1,8 +1,8 @@
 use clap::Args;
 use crossterm::style::Stylize;
 use serde_json::Value;
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read};
+use std::fs::{self, File};
+use std::io::{self, BufRead, BufReader, Read};
 use std::process;
 use walkdir::WalkDir;
 use zip::{CompressionMethod, ZipWriter};
@@ -32,11 +32,7 @@ pub fn build(_args: Cli) {
 
     // Extract name from the manifest and ensure it only contains alphanumeric characters
     let name = match manifest_json["name"].as_str() {
-        Some(name)
-            if !name.trim().is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric()) =>
-        {
-            name
-        }
+        Some(name) if !name.trim().is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric()) => name,
         _ => {
             eprintln!("{}", "Error: 'name' field is empty, not found, or contains non-alphanumeric characters in manifest file".bold().red());
             process::exit(1);
@@ -52,39 +48,9 @@ pub fn build(_args: Cli) {
         }
     };
 
-    // Create the build directory if it doesn't exist
-    if let Err(err) = fs::create_dir_all("build") {
-        eprintln!("{} {}", "Error creating build directory:".bold().red(), err);
-        process::exit(1);
-    }
-
-    // Delete existing .zip file if present (ignoring the version part)
-    let existing_zip_path = format!("build/{}@*.zip", name);
-    if let Err(err) = glob::glob(&existing_zip_path) {
-        eprintln!(
-            "{} {}",
-            "Error deleting existing zip file:".bold().red(),
-            err
-        );
-        process::exit(1);
-    } else {
-        for entry in glob::glob(&existing_zip_path).expect("Failed to read glob pattern") {
-            if let Ok(path) = entry {
-                if let Err(err) = fs::remove_file(&path) {
-                    eprintln!(
-                        "{} {}",
-                        "Error deleting existing zip file:".bold().red(),
-                        err
-                    );
-                    process::exit(1);
-                }
-            }
-        }
-    }
-
     // Create the zip file inside the build directory using the name and version from the manifest
     let zip_path = format!("build/{}@{}.zip", name, version);
-    if let Err(err) = create_zip_archive(&zip_path, ".", &manifest_json) {
+    if let Err(err) = create_zip_archive(&zip_path, ".", ".swifftyignore") {
         eprintln!("{} {}", "Error creating zip archive:".bold().red(), err);
         process::exit(1);
     }
@@ -92,31 +58,44 @@ pub fn build(_args: Cli) {
     println!("{}", "Build complete.".green().bold());
 }
 
-fn create_zip_archive(zip_path: &str, source_dir: &str, manifest: &Value) -> io::Result<()> {
+fn create_zip_archive(zip_path: &str, source_dir: &str, ignore_file: &str) -> io::Result<()> {
     // Open a file to write the zip archive to
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(zip_path)?;
+    let file = File::create(zip_path)?;
     // Create a ZipWriter to write the zip archive
     let mut zip_writer = ZipWriter::new(file);
 
+    // Read the .swifftyignore file
+    let ignored_dirs: Vec<String> = match fs::File::open(ignore_file) {
+        Ok(file) => {
+            let reader = BufReader::new(file);
+            reader
+                .lines()
+                .filter_map(|line| line.ok())
+                .collect()
+        }
+        Err(_) => Vec::new(), // If ignore file doesn't exist or cannot be read, treat it as empty
+    };
+
     // Walk the source directory and add all files and directories to the zip archive
-    let walker = WalkDir::new(source_dir);
+    let walker = WalkDir::new(source_dir).into_iter().filter_entry(|entry| {
+        let entry_path = entry.path();
+        // Check if the entry's path is not in the ignored directories list
+        !ignored_dirs.iter().any(|ignored_dir| entry_path.starts_with(ignored_dir))
+    });
+
     for entry in walker {
         let entry = entry?;
         let path = entry.path();
         let name = path.strip_prefix(source_dir).unwrap(); // Strip the leading source directory from the file path
         if path.is_file() {
-            let options =
-                zip::write::FileOptions::default().compression_method(CompressionMethod::Stored);
+            let options = zip::write::FileOptions::default()
+                .compression_method(CompressionMethod::Stored);
             zip_writer.start_file(name.to_string_lossy(), options)?;
             let mut file = File::open(path)?;
             io::copy(&mut file, &mut zip_writer)?;
         } else if path.is_dir() {
-            let options =
-                zip::write::FileOptions::default().compression_method(CompressionMethod::Stored);
+            let options = zip::write::FileOptions::default()
+                .compression_method(CompressionMethod::Stored);
             zip_writer.add_directory(name.to_string_lossy(), options)?;
         }
     }
