@@ -1,7 +1,7 @@
-mod auth;
 mod init;
+mod build;
 mod logo;
-mod add;
+
 
 use clap::Parser;
 
@@ -9,7 +9,7 @@ use clap::Parser;
 #[command(
     name = "customs",
     version = "0.1.0",
-    about = "Build discord bots with ease"
+    about = "Build a package with swiffty"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -18,43 +18,25 @@ pub struct Cli {
 
 #[derive(Parser)]
 pub enum Commands {
-    #[command(about = "Initialize a project")]
+    #[command(about = "Initialize a plugin")]
     Init(init::Cli),
-    #[command(about = "Complete account actions", subcommand)]
-    Auth(AuthCommands),
-    #[command(about = "Initialize a project")]
-    Add(add::Cli),
-
+    #[command(about = "Build a plugin")]
+    Build(build::Cli),
 }
 
-#[derive(Parser)]
-pub enum AuthCommands {
-    #[command(about = "Create a new authentication")]
-    Create,
-    #[command(about = "Delete an authentication")]
-    Delete,
-    #[command(about = "Log in")]
-    Login,
-    #[command(about = "Log out")]
-    Logout,
-}
 
 pub fn run() {
     let args = Cli::parse();
     match args.command {
         Commands::Init(args) => {
             logo::logo();
-            init::init(args)
+            init::init(args);
         }
-        Commands::Auth(auth_cmd) => match auth_cmd {
-            AuthCommands::Create => auth::create::create(),
-            AuthCommands::Delete => auth::delete::delete(),
-            AuthCommands::Login => auth::login::login(),
-            AuthCommands::Logout => auth::logout::logout(),
-        },
-        Commands::Add(args) => {
-            logo::logo();
-            add::add(args)
+
+            Commands::Build(args) => {
+                logo::logo();
+                build::build(args)
         }
+        
     }
 }

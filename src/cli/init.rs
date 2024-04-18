@@ -1,9 +1,9 @@
 use clap::Args;
 use crossterm::style::Stylize;
 use dialoguer::Input;
-use git2::Repository;
-use std::path::PathBuf;
-use std::{fs, process};
+use serde_json::json;
+use std::io::prelude::*;
+use std::fs;
 
 #[derive(Args)]
 pub struct Cli {}
@@ -11,46 +11,38 @@ pub struct Cli {}
 pub fn init(_args: Cli) {
     let theme = dialoguer::theme::ColorfulTheme::default();
 
-    let prog_name: String = Input::with_theme(&theme)
-        .with_prompt("Project name")
+    let plugin_name: String = Input::with_theme(&theme)
+        .with_prompt("Plugin Name")
         .interact_text()
         .unwrap();
 
-    let allowed_languages = vec!["js", "py", "rs"];
-    let lang_selection = dialoguer::Select::with_theme(&theme)
-        .with_prompt("Language")
-        .items(&allowed_languages)
-        .interact()
+    let plugin_description: String = Input::with_theme(&theme)
+        .with_prompt("Plugin Description")
+        .interact_text()
         .unwrap();
 
-    let path = PathBuf::from(&prog_name);
+    let plugin_author: String = Input::with_theme(&theme)
+        .with_prompt("Plugin Author")
+        .interact_text()
+        .unwrap();
 
-    if let Ok(entries) = fs::read_dir(&path) {
-        if entries.peekable().peek().is_some() {
-            println!("{}", "Directory is not empty".red().bold());
+    let file_name = format!("{}/plugin-manifest.json", plugin_name);
 
-            let input: bool = Input::with_theme(&theme)
-                .with_prompt("Proceed anyway")
-                .interact_text()
-                .unwrap();
+    let json_data = json!({
+        "name": plugin_name,
+        "version": "1.0",
+        "description": plugin_description,
+        "author": plugin_author
+    });
 
-            if !input {
-                process::exit(0);
-            }
-        }
-    }
+    let formatted_json_data =
+        serde_json::to_string_pretty(&json_data).expect("Failed to serialize JSON data");
 
-    let git_url = "https://github.com/C-h-a-r/DiscordCustoms-Template";
+    fs::create_dir(&plugin_name).expect("Failed to create directory");
 
-    let url_with_lang = format!("{}-{}/", git_url, allowed_languages[lang_selection]);
+    let mut file = fs::File::create(&file_name).expect("Failed to create file");
+    file.write_all(formatted_json_data.as_bytes())
+        .expect("Failed to write to file");
 
-    let _repo = match Repository::clone(&url_with_lang, &path) {
-        Ok(repo) => repo,
-        Err(e) => {
-            println!("{}", format!("{} Failed to clone: {}", "ERROR".bold().red(), e));
-            process::exit(1);
-        }
-    };
-
-    println!("{} {}", "Initialized".green(), prog_name);
+    println!("{} {}\n\n{}\n{}\n\nHave Fun Coding!", "Initialized".green(), plugin_name, "Swiffty commands and events must be writen in lua. We do this to avoid malwear infecting plugins.".italic().yellow(), "Learn more here: https://example.com/".bold().yellow());
 }
