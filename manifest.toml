@@ -1,0 +1,5 @@
+[Plugin]
+name = "Example"
+description = "Example plugin"
+version = "1.0.0"
+author = "John Doe"

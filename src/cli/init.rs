@@ -1,9 +1,7 @@
 use clap::Args;
 use crossterm::style::Stylize;
 use dialoguer::Input;
-use serde_json::json;
 use std::fs;
-use std::io::prelude::*;
 use std::process::Command;
 
 #[derive(Args)]
@@ -19,6 +17,7 @@ pub fn init(_args: Cli) {
 
     let plugin_description: String = Input::with_theme(&theme)
         .with_prompt("Plugin Description")
+        .default("".to_string())
         .interact_text()
         .unwrap();
 
@@ -35,12 +34,12 @@ pub fn init(_args: Cli) {
     // Write to plugin.toml
     let toml_data = format!(
         r#"
-        [Plugin]
-        name = "{}"
-        version = "1.0"
-        description = "{}"
-        author = "{}"
-        "#,
+    [Plugin]
+    name = "{}"
+    version = "1.0"
+    description = "{}"
+    author = "{}"
+    "#,
         plugin_name, plugin_description, plugin_author
     );
     let toml_file_path = format!("{}/manifest.toml", plugin_dir);
