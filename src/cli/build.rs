@@ -5,8 +5,8 @@ use git2::{Repository, StatusOptions};
 use std::{
     env,
     fs::{self, File},
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
+    io::{Read, Write},
+    path::Path,
 };
 use toml::Value;
 use walkdir::WalkDir;
