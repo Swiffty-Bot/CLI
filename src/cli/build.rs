@@ -5,7 +5,7 @@ use git2::{Repository, StatusOptions};
 use std::{
     env,
     fs::{self, File},
-    io::{self},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 use toml::Value;
@@ -232,9 +232,7 @@ fn create_zip(
     let file = File::create(file_path)?;
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored)
-        .large_file(true)
-        .unix_permissions(0o755);
+        .compression_method(zip::CompressionMethod::Stored);
 
     for entry in WalkDir::new(source_dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
@@ -245,7 +243,11 @@ fn create_zip(
             if path.is_file() {
                 zip.start_file(rel_path_str, options)?;
                 let mut f = File::open(path)?;
-                std::io::copy(&mut f, &mut zip)?;
+                let mut buf = Vec::new();
+
+                f.read(&mut buf)?;
+
+                zip.write(&buf)?;
             } else if path.is_dir() {
                 zip.add_directory(rel_path_str, options)?;
             }
