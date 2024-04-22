@@ -212,6 +212,7 @@ fn check_existing_zip(file_path: &Path) -> bool {
     true
 }
 
+// does not actually support the full gitignore syntax (regexes, **/path, etc)
 fn get_ignored_dirs(current_dir: &Path) -> Vec<String> {
     let mut ignored_dirs = Vec::new();
     if let Ok(ignore_content) = fs::read_to_string(current_dir.join(".gitignore")) {
