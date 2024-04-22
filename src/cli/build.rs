@@ -2,6 +2,7 @@ use clap::Args;
 use crossterm::style::Stylize;
 use dialoguer::Confirm;
 use git2::{Repository, StatusOptions};
+use tracing::{debug, error};
 use std::{
     env,
     fs::{self, File},
@@ -20,7 +21,7 @@ pub fn build(_args: Cli) {
         let manifest_path = current_dir.join("manifest.toml");
 
         if !manifest_path.exists() {
-            error_message("manifest.toml file not found");
+            error!("manifest.toml file not found");
             return;
         }
 
@@ -35,7 +36,7 @@ pub fn build(_args: Cli) {
         let target_dir = current_dir.join("target");
         if !target_dir.exists() {
             if let Err(err) = fs::create_dir(&target_dir) {
-                error_message(&format!("Failed to create /target directory: {}", err));
+                error!("Failed to create /target directory: {}", err);
                 return;
             }
         }
@@ -43,7 +44,7 @@ pub fn build(_args: Cli) {
         let (name, version) = match get_plugin_info(&manifest_path) {
             Some(info) => info,
             None => {
-                error_message("Failed to retrieve plugin name and version from manifest.toml");
+                error!("Failed to retrieve plugin name and version from manifest.toml");
                 return;
             }
         };
@@ -52,13 +53,13 @@ pub fn build(_args: Cli) {
         let file_path = target_dir.join(&filename);
 
         if !check_existing_zip(&file_path) {
-            return error_message("Build canceled");
+            return error!("Build canceled");
         }
 
         let ignored_dirs = get_ignored_dirs(&current_dir);
 
         if let Err(err) = create_zip(&current_dir, &file_path, &ignored_dirs) {
-            error_message(&format!("Failed to create zip: {}", err));
+            error!("Failed to create zip: {}", err);
         }
 
         println!(
@@ -75,7 +76,7 @@ fn check_manifest(manifest_path: &Path) -> bool {
         let toml: toml::Value = match manifest_content.parse() {
             Ok(value) => value,
             Err(err) => {
-                error_message(&format!("Failed to parse manifest.toml: {}", err));
+                error!("Failed to parse manifest.toml: {}", err);
                 return false;
             }
         };
@@ -83,7 +84,7 @@ fn check_manifest(manifest_path: &Path) -> bool {
         let plugin_section = match toml.get("Plugin").and_then(|value| value.as_table()) {
             Some(section) => section,
             None => {
-                error_message("Failed to find [Plugin] section in manifest.toml");
+                error!("Failed to find [Plugin] section in manifest.toml");
                 return false;
             }
         };
@@ -93,13 +94,12 @@ fn check_manifest(manifest_path: &Path) -> bool {
 
         for field in &required_fields {
             if let Some(value) = plugin_section.get(*field).and_then(|value| value.as_str()) {
-                println!("{}: {}", field, value);
+                debug!("{}: {}", field, value);
             } else {
-                error_message(&format!(
-                    "Missing '{} {}' field in manifest.toml",
+                error!(
+                    "Missing '{}' field in manifest.toml",
                     field.bold().white(),
-                    "Error:".bold().red()
-                ));
+                );
                 missing_fields = true;
             }
         }
@@ -107,20 +107,19 @@ fn check_manifest(manifest_path: &Path) -> bool {
         let name = match plugin_section.get("name").and_then(|value| value.as_str()) {
             Some(name) => name,
             None => {
-                error_message(&format!(
-                    "Missing '{} {}' field in manifest.toml",
+                error!(
+                    "Missing '{}' field in manifest.toml",
                     "name".bold().white(),
-                    "Error:".bold().red()
-                ));
+                );
                 return false;
             }
         };
 
         if !name.chars().all(|c| c.is_alphabetic()) {
-            error_message(&format!(
+            error!(
                 "Invalid plugin name '{}', must contain only letters",
                 name
-            ));
+            );
             return false;
         }
 
@@ -130,26 +129,25 @@ fn check_manifest(manifest_path: &Path) -> bool {
         {
             Some(version) => version,
             None => {
-                error_message(&format!(
-                    "Missing '{} {}' field in manifest.toml",
+                error!(
+                    "Missing '{}' field in manifest.toml",
                     "version".bold().white(),
-                    "Error:".bold().red()
-                ));
+                );
                 return false;
             }
         };
 
         if !semver::Version::parse(version).is_ok() {
-            error_message(&format!(
+            error!(
                 "Invalid version '{}', must follow semantic versioning rules",
                 version
-            ));
+            );
             return false;
         }
 
         !missing_fields
     } else {
-        error_message("Failed to read manifest.toml file");
+        error!("Failed to read manifest.toml file");
         false
     }
 }
@@ -160,15 +158,15 @@ fn check_github_repo(current_dir: &Path) -> bool {
         status_opts.include_untracked(true);
         if let Ok(status) = repo.statuses(Some(&mut status_opts)) {
             if !status.is_empty() {
-                error_message("Uncommitted changes in the Git repository");
+                error!("Uncommitted changes in the Git repository");
                 return false;
             }
         } else {
-            error_message("Failed to check Git repository status");
+            error!("Failed to check Git repository status");
             return false;
         }
     } else {
-        error_message("Git repository not found in current directory");
+        error!("Git repository not found in current directory");
         return false;
     }
     true
@@ -257,8 +255,4 @@ fn create_zip(
 
     zip.finish()?;
     Ok(())
-}
-
-fn error_message(message: &str) {
-    println!("{} {}", "Error:".bold().red(), message.bold().white());
 }
