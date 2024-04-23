@@ -1,6 +1,6 @@
 use clap::Args;
 use crossterm::style::Stylize;
-use dialoguer::Confirm;
+use dialoguer::{theme::ColorfulTheme, Confirm};
 use git2::{Repository, StatusOptions};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
@@ -17,16 +17,32 @@ use zip::{write::FileOptions, ZipWriter};
 
 #[derive(Args)]
 pub struct Cli {
-    #[arg(long)]
+    #[arg(long, help = "Whether to ignore the current changes being committed requirement.")]
     pub allow_dirty: bool,
+
+    #[arg(short, long, help = "Whether to skip the overwrite prompt")]
+    pub yes: bool,
 }
 
 #[derive(Serialize, Deserialize)]
-struct Manifest {
+pub struct Plugin {
     pub name: String,
     pub version: Version, // enforces that it follows a version syntax
+
+    #[serde(default = "default_target")]
     pub target: PathBuf,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Manifest {
+    pub plugin: Plugin,
+
+    #[serde(default = "HashMap::new")]
     pub dependencies: HashMap<String, VersionReq>, // version requirement syntax (ex: >=1.0.4). might remove this one if we don't want to do dependencies.
+}
+
+fn default_target() -> PathBuf {
+    PathBuf::from("/target")
 }
 
 pub fn build(args: Cli) {
@@ -44,7 +60,7 @@ pub fn build(args: Cli) {
             return;
         }
 
-        let manifest = manifest.unwrap();
+        let plugin = manifest.unwrap().plugin;
 
         let repo = Repository::open(&current_dir);
 
@@ -59,18 +75,17 @@ pub fn build(args: Cli) {
             return;
         }
 
-        let target_dir = current_dir.join("target");
-        if !target_dir.exists() {
-            if let Err(err) = fs::create_dir(&target_dir) {
+        if !plugin.target.exists() {
+            if let Err(err) = fs::create_dir(&plugin.target) {
                 error!("Failed to create /target directory: {}", err);
                 return;
             }
         }
 
-        let filename = format!("{}@{}.zip", manifest.name, manifest.version);
-        let file_path = target_dir.join(&filename);
+        let filename = format!("{}@{}.zip", plugin.name, plugin.version);
+        let file_path = plugin.target.join(&filename);
 
-        if !check_existing_zip(&file_path) {
+        if !args.yes && !check_existing_zip(&file_path) {
             return error!("Build canceled");
         }
 
@@ -112,24 +127,20 @@ fn check_dirty(repo: &Repository) -> bool {
 
 fn check_existing_zip(file_path: &PathBuf) -> bool {
     if file_path.exists() {
-        let theme = dialoguer::theme::ColorfulTheme::default();
+        let theme = ColorfulTheme::default();
         let confirm = Confirm::with_theme(&theme);
         let result = confirm
             .with_prompt("Zip file already exists. Overwrite?")
             .interact()
             .unwrap();
-        if result {
-            return true;
-        } else {
-            return false;
-        }
+        
+        return result;
     }
     true
 }
 
-// does not actually support the full gitignore syntax (regexes, **/path, etc)
 fn get_valid_dirs(current_dir: &PathBuf, repo: &Repository) -> Vec<PathBuf> {
-    WalkDir::new(current_dir)
+    WalkDir::new(current_dir).min_depth(1)
         .into_iter()
         .filter_map(|entry| {
             let path = entry.ok()?.path().to_path_buf();
