@@ -18,7 +18,7 @@ use zip::{write::FileOptions, ZipWriter};
 #[derive(Args)]
 pub struct Cli {
     #[arg(long)]
-    pub ignore_dirty: bool,
+    pub allow_dirty: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -55,7 +55,7 @@ pub fn build(args: Cli) {
 
         let repo = repo.unwrap();
 
-        if !args.ignore_dirty && check_dirty(&repo) {
+        if !args.allow_dirty && check_dirty(&repo) {
             return;
         }
 
