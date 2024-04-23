@@ -31,9 +31,6 @@ pub struct Plugin {
     pub name: String,
     pub version: Version,
     pub authors: Vec<String>,
-
-    #[serde(default = "default_target")]
-    pub target: PathBuf,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -45,12 +42,9 @@ pub struct Manifest {
     pub dependencies: HashMap<String, VersionReq>,
 }
 
-fn default_target() -> PathBuf {
-    PathBuf::from("./target")
-}
-
 pub fn build(args: Cli) {
     let current_dir = args.path.unwrap_or(std::env::current_dir().unwrap());
+    let target = current_dir.join("target");
 
     let manifest_path = current_dir.join("manifest.toml");
 
@@ -80,15 +74,15 @@ pub fn build(args: Cli) {
         return;
     }
 
-    if !plugin.target.exists() {
-        if let Err(err) = fs::create_dir(&plugin.target) {
+    if !target.exists() {
+        if let Err(err) = fs::create_dir(&target) {
             error!("Failed to create /target directory: {}", err);
             return;
         }
     }
 
     let filename = format!("{}@{}.zip", plugin.name, plugin.version);
-    let file_path = plugin.target.join(&filename);
+    let file_path = target.join(&filename);
 
     if !args.yes && !check_existing_zip(&file_path) {
         return error!("Build canceled");
