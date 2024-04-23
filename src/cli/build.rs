@@ -3,13 +3,17 @@ use crossterm::style::Stylize;
 use dialoguer::Confirm;
 use git2::{Repository, StatusOptions};
 use semver::{Version, VersionReq};
-use tracing::error;
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap, env, fs::{self, File}, io::Write, path::PathBuf
+    collections::HashMap,
+    env,
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
 };
+use tracing::error;
 use walkdir::WalkDir;
 use zip::{write::FileOptions, ZipWriter};
-use serde::{Serialize, Deserialize};
 
 #[derive(Args)]
 pub struct Cli {
@@ -39,7 +43,7 @@ pub fn build(args: Cli) {
             error!("Invalid manifest: {err}");
             return;
         }
-        
+
         let manifest = manifest.unwrap();
 
         let repo = Repository::open(&current_dir);
@@ -145,8 +149,7 @@ fn create_zip(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::create(file_path)?;
     let mut zip = ZipWriter::new(file);
-    let options = FileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     for path in valid_dirs {
         let data = fs::read(path)?;
