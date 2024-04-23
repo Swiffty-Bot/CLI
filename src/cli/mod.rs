@@ -1,7 +1,6 @@
-mod init;
 mod build;
+mod init;
 mod logo;
-
 
 use clap::Parser;
 
@@ -24,7 +23,6 @@ pub enum Commands {
     Build(build::Cli),
 }
 
-
 pub fn run() {
     let args = Cli::parse();
     match args.command {
@@ -33,10 +31,9 @@ pub fn run() {
             init::init(args);
         }
 
-            Commands::Build(args) => {
-                logo::logo();
-                build::build(args)
+        Commands::Build(args) => {
+            logo::logo();
+            build::build(args)
         }
-        
     }
 }
