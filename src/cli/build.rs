@@ -2,21 +2,30 @@ use clap::Args;
 use crossterm::style::Stylize;
 use dialoguer::Confirm;
 use git2::{Repository, StatusOptions};
-use tracing::{debug, error};
+use semver::{Version, VersionReq};
+use tracing::error;
 use std::{
-    env,
-    fs::{self, File},
-    io::{Read, Write},
-    path::Path,
+    collections::HashMap, env, fs::{self, File}, io::Write, path::PathBuf
 };
-use toml::Value;
 use walkdir::WalkDir;
 use zip::{write::FileOptions, ZipWriter};
+use serde::{Serialize, Deserialize};
 
 #[derive(Args)]
-pub struct Cli {}
+pub struct Cli {
+    #[arg(long)]
+    pub ignore_dirty: bool,
+}
 
-pub fn build(_args: Cli) {
+#[derive(Serialize, Deserialize)]
+struct Manifest {
+    pub name: String,
+    pub version: Version, // enforces that it follows a version syntax
+    pub target: PathBuf,
+    pub dependencies: HashMap<String, VersionReq>, // version requirement syntax (ex: >=1.0.4). might remove this one if we don't want to do dependencies.
+}
+
+pub fn build(args: Cli) {
     if let Ok(current_dir) = env::current_dir() {
         let manifest_path = current_dir.join("manifest.toml");
 
@@ -25,11 +34,24 @@ pub fn build(_args: Cli) {
             return;
         }
 
-        if !check_manifest(&manifest_path) {
+        let manifest = check_manifest(&manifest_path);
+        if let Err(err) = manifest {
+            error!("Invalid manifest: {err}");
+            return;
+        }
+        
+        let manifest = manifest.unwrap();
+
+        let repo = Repository::open(&current_dir);
+
+        if repo.is_err() {
+            error!("Git repository not found");
             return;
         }
 
-        if !check_github_repo(&current_dir) {
+        let repo = repo.unwrap();
+
+        if !args.ignore_dirty && check_dirty(&repo) {
             return;
         }
 
@@ -41,24 +63,16 @@ pub fn build(_args: Cli) {
             }
         }
 
-        let (name, version) = match get_plugin_info(&manifest_path) {
-            Some(info) => info,
-            None => {
-                error!("Failed to retrieve plugin name and version from manifest.toml");
-                return;
-            }
-        };
-
-        let filename = format!("{}@{}.zip", name, version);
+        let filename = format!("{}@{}.zip", manifest.name, manifest.version);
         let file_path = target_dir.join(&filename);
 
         if !check_existing_zip(&file_path) {
             return error!("Build canceled");
         }
 
-        let ignored_dirs = get_ignored_dirs(&current_dir);
+        let valid_dirs = get_valid_dirs(&current_dir, &repo);
 
-        if let Err(err) = create_zip(&current_dir, &file_path, &ignored_dirs) {
+        if let Err(err) = create_zip(&file_path, &valid_dirs) {
             error!("Failed to create zip: {}", err);
         }
 
@@ -71,129 +85,28 @@ pub fn build(_args: Cli) {
     }
 }
 
-fn check_manifest(manifest_path: &Path) -> bool {
-    if let Ok(manifest_content) = fs::read_to_string(manifest_path) {
-        let toml: toml::Value = match manifest_content.parse() {
-            Ok(value) => value,
-            Err(err) => {
-                error!("Failed to parse manifest.toml: {}", err);
-                return false;
-            }
-        };
-
-        let plugin_section = match toml.get("Plugin").and_then(|value| value.as_table()) {
-            Some(section) => section,
-            None => {
-                error!("Failed to find [Plugin] section in manifest.toml");
-                return false;
-            }
-        };
-
-        let required_fields = ["name", "description", "version", "author"];
-        let mut missing_fields = false;
-
-        for field in &required_fields {
-            if let Some(value) = plugin_section.get(*field).and_then(|value| value.as_str()) {
-                debug!("{}: {}", field, value);
-            } else {
-                error!(
-                    "Missing '{}' field in manifest.toml",
-                    field.bold().white(),
-                );
-                missing_fields = true;
-            }
-        }
-
-        let name = match plugin_section.get("name").and_then(|value| value.as_str()) {
-            Some(name) => name,
-            None => {
-                error!(
-                    "Missing '{}' field in manifest.toml",
-                    "name".bold().white(),
-                );
-                return false;
-            }
-        };
-
-        if !name.chars().all(|c| c.is_alphabetic()) {
-            error!(
-                "Invalid plugin name '{}', must contain only letters",
-                name
-            );
-            return false;
-        }
-
-        let version = match plugin_section
-            .get("version")
-            .and_then(|value| value.as_str())
-        {
-            Some(version) => version,
-            None => {
-                error!(
-                    "Missing '{}' field in manifest.toml",
-                    "version".bold().white(),
-                );
-                return false;
-            }
-        };
-
-        if !semver::Version::parse(version).is_ok() {
-            error!(
-                "Invalid version '{}', must follow semantic versioning rules",
-                version
-            );
-            return false;
-        }
-
-        !missing_fields
-    } else {
-        error!("Failed to read manifest.toml file");
-        false
-    }
+// lazy here with the error, typically should use the `thiserror` crate and create a union type but since its only being called once ig its ok.
+fn check_manifest(manifest_path: &PathBuf) -> Result<Manifest, Box<dyn std::error::Error>> {
+    let mfdata = fs::read_to_string(manifest_path)?;
+    Ok(toml::from_str(&mfdata)?)
 }
 
-fn check_github_repo(current_dir: &Path) -> bool {
-    if let Ok(repo) = Repository::open(current_dir) {
-        let mut status_opts = StatusOptions::new();
-        status_opts.include_untracked(true);
-        if let Ok(status) = repo.statuses(Some(&mut status_opts)) {
-            if !status.is_empty() {
-                error!("Uncommitted changes in the Git repository");
-                return false;
-            }
-        } else {
-            error!("Failed to check Git repository status");
-            return false;
+fn check_dirty(repo: &Repository) -> bool {
+    let mut status_opts = StatusOptions::new();
+    status_opts.include_untracked(true);
+    if let Ok(status) = repo.statuses(Some(&mut status_opts)) {
+        if !status.is_empty() {
+            error!("Uncommitted changes in the Git repository");
+            return true;
         }
     } else {
-        error!("Git repository not found in current directory");
-        return false;
+        error!("Failed to check Git repository status");
+        return true;
     }
-    true
+    false
 }
 
-fn get_plugin_info(manifest_path: &Path) -> Option<(String, String)> {
-    if let Ok(manifest_content) = fs::read_to_string(manifest_path) {
-        if let Ok(toml) = manifest_content.parse::<Value>() {
-            if let Some(plugin_section) = toml.get("Plugin").and_then(|value| value.as_table()) {
-                let name = plugin_section
-                    .get("name")
-                    .and_then(|value| value.as_str())
-                    .map(|name| name.to_string());
-
-                let version = plugin_section
-                    .get("version")
-                    .and_then(|value| value.as_str())
-                    .map(|version| version.to_string());
-
-                return name.and_then(|name| version.map(|version| (name, version)));
-            }
-        }
-    }
-    None
-}
-
-fn check_existing_zip(file_path: &Path) -> bool {
+fn check_existing_zip(file_path: &PathBuf) -> bool {
     if file_path.exists() {
         let theme = dialoguer::theme::ColorfulTheme::default();
         let confirm = Confirm::with_theme(&theme);
@@ -211,46 +124,34 @@ fn check_existing_zip(file_path: &Path) -> bool {
 }
 
 // does not actually support the full gitignore syntax (regexes, **/path, etc)
-fn get_ignored_dirs(current_dir: &Path) -> Vec<String> {
-    let mut ignored_dirs = Vec::new();
-    if let Ok(ignore_content) = fs::read_to_string(current_dir.join(".gitignore")) {
-        for line in ignore_content.lines() {
-            if !line.trim().is_empty() && !line.starts_with('#') {
-                ignored_dirs.push(line.trim().to_string());
+fn get_valid_dirs(current_dir: &PathBuf, repo: &Repository) -> Vec<PathBuf> {
+    WalkDir::new(current_dir)
+        .into_iter()
+        .filter_map(|entry| {
+            let path = entry.ok()?.path().to_path_buf();
+            if repo.is_path_ignored(&path).ok()? {
+                return None;
             }
-        }
-    }
-    ignored_dirs
+
+            Some(path)
+        })
+        .collect()
 }
 
+// because this might be made into a helper function, consider making an error type for it.
 fn create_zip(
-    source_dir: &Path,
-    file_path: &Path,
-    ignored_dirs: &[String],
+    file_path: &PathBuf,
+    valid_dirs: &[PathBuf],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::create(file_path)?;
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default()
         .compression_method(zip::CompressionMethod::Stored);
 
-    for entry in WalkDir::new(source_dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        let rel_path = path.strip_prefix(source_dir)?;
-        let rel_path_str = rel_path.to_string_lossy().to_string();
-
-        if !ignored_dirs.iter().any(|dir| rel_path_str.starts_with(dir)) {
-            if path.is_file() {
-                zip.start_file(rel_path_str, options)?;
-                let mut f = File::open(path)?;
-                let mut buf = Vec::new();
-
-                f.read(&mut buf)?;
-
-                zip.write(&buf)?;
-            } else if path.is_dir() {
-                zip.add_directory(rel_path_str, options)?;
-            }
-        }
+    for path in valid_dirs {
+        let data = fs::read(path)?;
+        zip.start_file(path.display().to_string(), options)?;
+        zip.write_all(&data)?;
     }
 
     zip.finish()?;
